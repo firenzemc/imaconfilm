@@ -1,0 +1,16 @@
+# Film scans and any exports — NEVER publish (personal negatives, multi-GB)
+fff/
+out/
+*.fff
+
+# Python / uv
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# macOS
+.DS_Store
+
+# Claude Code local per-user overrides (launch.json is intentionally tracked)
+.claude/settings.local.json

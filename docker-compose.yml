@@ -1,0 +1,17 @@
+# filmtool — local OrbStack/Docker service.
+#   docker compose up -d --build        -> http://<this-host-ip>:8790/
+# By default it mounts the CURRENT USER'S HOME ($HOME) to /data, so the in-UI
+# folder browser can reach any scan folder under home — and the SAME command
+# works on every machine (devmac -> /Users/devmac, mbp -> /Users/chao); no path
+# is baked in. To scope it tighter or reach an external disk, set FFF_DIR:
+#   FFF_DIR=/Volumes/SSD/film docker compose up -d
+services:
+  filmtool:
+    build: ./filmtool
+    image: filmtool:latest
+    container_name: filmtool
+    ports:
+      - "8790:8790"
+    volumes:
+      - "${FFF_DIR:-${HOME}}:/data"
+    restart: unless-stopped
