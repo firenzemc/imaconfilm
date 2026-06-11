@@ -1,5 +1,8 @@
 # filmtool · 哈苏 Imacon FFF 胶卷底片处理工具
 
+> **imaconfilm** —— 一个处理哈苏 Imacon（Flextight）扫描仪输出的 `.fff` 胶片底片文件的工具。
+> A tool for developing `.fff` film-negative files scanned on Hasselblad/Imacon (Flextight) scanners.
+
 把 Imacon/哈苏 Flextight 扫描的 `.fff` 底片，自动**去橙色色罩 + 反相 + 按画幅比例裁切**成可用的正片，
 浏览器里手动微调，批量导出全分辨率 JPEG / 16-bit 无损 TIFF（内嵌 sRGB，darktable / Lightroom 直读）。
 
