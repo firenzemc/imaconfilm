@@ -252,6 +252,8 @@ class ExportReq(BaseModel):
     path: str
     frames: list[ExportFrame]
     formats: list[str] = ["jpg", "tiff"]
+    raw: bool = False       # un-developed: export the cropped raw scanner data
+    margin: float = 0.1     # raw mode: grow the crop on every side (film-base ref)
 
 
 @app.post("/api/export")
@@ -262,6 +264,20 @@ def export(req: ExportReq):
     dest.mkdir(parents=True, exist_ok=True)
     written = []
     for fr in req.frames:
+        if req.raw:
+            # No inversion / WB / tone — write the raw 16-bit scanner crop so the
+            # negative is developed later (e.g. darktable's negadoctor). Grow the
+            # crop on every side so clear film base is kept as a colour reference.
+            m = max(0.0, req.margin)
+            du, dv = (fr.u1 - fr.u0) * m, (fr.v1 - fr.v0) * m
+            crop, _ = _crop_raw(c, fr.u0 - du, fr.u1 + du, fr.v0 - dv, fr.v1 + dv,
+                                max_px=10 ** 9)
+            out = P.orient(crop.astype(np.uint16), fr.rotation, fr.flip_h, fr.flip_v)
+            p = dest / f"{fr.out_name}.tiff"
+            # linear 16-bit, no ICC (a raw negative, not an sRGB image yet)
+            tifffile.imwrite(str(p), out, photometric="rgb", compression="adobe_deflate")
+            written.append(str(p))
+            continue
         crop, box = _crop_raw(c, fr.u0, fr.u1, fr.v0, fr.v1, max_px=10 ** 9)
         want16 = "tiff" in req.formats
         pos = P.develop(crop, c["ped"], c["base"], fr.params, out16=want16)

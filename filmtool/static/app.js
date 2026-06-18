@@ -87,6 +87,9 @@ async function loadStrip(path) {
   $('#stripImg').src = '/api/strip?path=' + encodeURIComponent(path) + '&t=' + Date.now();
   $('#stripPane').classList.remove('hidden');
   $('#editPane').classList.remove('hidden');
+  // fresh file -> drop the previous file's frames/meta (rotation, flips, colour)
+  // so editing carries over per-frame, never across files.
+  S.bounds = []; S.meta = []; S.boxes = []; S.sel = -1;
   applyRatioSelection($('#ratio').value);
   toast('已载入');
 }
@@ -488,6 +491,31 @@ $('#btnExport').onclick = async () => {
     $('#exportStatus').textContent = `✓ 已导出 ${r.files.length} 个文件到\n${r.out_dir}`;
   } catch (e) { $('#exportStatus').textContent = '导出失败: ' + e; }
   $('#btnExport').disabled = false;
+};
+
+// un-graded export: raw cropped negative (no invert/WB/tone), margin of film base
+$('#btnExportRaw').onclick = async () => {
+  if (S.sel < 0 || !nFrames()) return toast('请先选文件并分帧');
+  const stem = S.name.replace(/\.fff$/i, '');
+  const frames = [];
+  for (let i = 0; i < nFrames(); i++) {
+    const [u0, u1] = frameSpan(i); const m = frameMetaAt(i);
+    frames.push({
+      u0, u1, v0: S.vcrop[0], v1: S.vcrop[1],
+      rotation: m.rotation, flip_h: m.flip_h, flip_v: m.flip_v,
+      params: m.params, out_name: `${stem}-${String(i + 1).padStart(2, '0')}-raw`,
+    });
+  }
+  $('#exportRawStatus').textContent = `导出 ${frames.length} 帧未调色原片…`;
+  $('#btnExportRaw').disabled = true;
+  try {
+    const r = await (await api('/api/export', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: S.path, frames, formats: ['tiff'], raw: true }),
+    })).json();
+    $('#exportRawStatus').textContent = `✓ 已导出 ${r.files.length} 个原片到\n${r.out_dir}`;
+  } catch (e) { $('#exportRawStatus').textContent = '导出失败: ' + e; }
+  $('#btnExportRaw').disabled = false;
 };
 
 // ---------------------------------------------------------------- utils + init

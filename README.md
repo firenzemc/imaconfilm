@@ -65,6 +65,9 @@ FFF_DIR=/Volumes/SSD/film docker compose up -d
 4. **导出** —— 勾选 JPEG / 16-bit TIFF，点 `导出全部帧`。输出写到**输入文件旁的子目录**
    `<输入目录>/<文件名>/`，命名 `<文件名>-序号`（如 `fff/001/001-01.tiff`）。
    TIFF 为 deflate **无损** + 内嵌 **sRGB ICC**；JPEG 也带 ICC。
+   - **未调色原片导出**（`导出全部帧` 下方按钮）：只按裁切导出原始负片，**不反相 / 不调色 /
+     不白平衡**，四周多留约 10% 片基作色彩基准，输出 `<文件名>-序号-raw.tiff`（16-bit 线性、
+     无损、无 ICC）。留到 darktable（negadoctor 模块）等里反相 + 调色。
 
 ## 它是怎么工作的
 
