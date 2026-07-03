@@ -89,30 +89,31 @@
       </div>
       <hr>
       <div class="export">
-        <label><input type="checkbox" id="fmtJpg" checked> JPEG</label>
-        <label><input type="checkbox" id="fmtTiff" checked> 16-bit TIFF（无损 + sRGB）</label>
-        <button id="btnExport" class="primary">导出全部帧</button>
-        <div id="exportStatus" class="status"></div>
-        <hr>
-        <button id="btnExportRaw">导出未调色原片（16-bit 线性 · 留片基）</button>
-        <div class="hint">仅按上面的裁切导出原始负片：不反相 / 不调色 / 不白平衡，四周多留一圈片基作基准，留到 darktable 等里处理。</div>
-        <div id="exportRawStatus" class="status"></div>
-        <hr>
-        <label>线性归一化
-          <select id="linNorm">
-            <option value="neutral">中性平片（更灰 · 留调色空间）</option>
-            <option value="per_channel">每通道拉伸（更到位）</option>
+        <label>导出模式
+          <select id="expMode">
+            <option value="finished">成片（反相 + 调色 · sRGB）</option>
+            <option value="linear">线性正片（Capture One · 平片）</option>
+            <option value="raw">未调色原片（生负片 · 留片基）</option>
           </select>
         </label>
-        <button id="btnExportLin">导出线性正片（Capture One）</button>
-        <div class="hint">已反相 + 去罩、<b>不烤 gamma</b> 的平片，给 C1 续调；文件名 <code>-lin.tiff</code>。
-          中性模式偏暗是正常的（那是宽容度）。C1 里打开若偏暗/怪，按需在 C1 指定/线性化 profile（待你验证）。</div>
-        <div id="exportLinStatus" class="status"></div>
-        <hr>
+        <div id="optFinished" class="exp-opt">
+          <label><input type="checkbox" id="fmtJpg" checked> JPEG</label>
+          <label><input type="checkbox" id="fmtTiff" checked> 16-bit TIFF</label>
+        </div>
+        <div id="optLinear" class="exp-opt hidden">
+          <label>归一化
+            <select id="linNorm">
+              <option value="neutral">中性（灰世界 + 统一拉伸）</option>
+              <option value="per_channel">每通道拉伸（更到位）</option>
+            </select>
+          </label>
+        </div>
         <label class="odir">导出到目录
           <input id="outDir" type="text" placeholder="留空=输入文件旁；可填 C1 Hot Folder（相对根目录）">
         </label>
-        <div class="hint">相对允许根目录；指向 Capture One 的 Hot Folder / Session Capture 文件夹即自动 ingest。对以上三种导出都生效。</div>
+        <button id="btnExport" class="primary">导出全部帧</button>
+        <div id="exportStatus" class="status"></div>
+        <div class="hint" id="expHint"></div>
       </div>
     </div>
   </section>

@@ -493,28 +493,42 @@ async function runExport(body, statusSel, btnSel, workingMsg) {
   $(btnSel).disabled = false;
 }
 
-$('#btnExport').onclick = () => {
-  const formats = [];
-  if ($('#fmtJpg').checked) formats.push('jpg');
-  if ($('#fmtTiff').checked) formats.push('tiff');
-  if (!formats.length) return toast('请选择至少一种格式');
-  runExport({ path: S.path, frames: buildExportFrames(''), formats, out_dir: outDir() },
-    '#exportStatus', '#btnExport', `导出 ${nFrames()} 帧（全分辨率）…`);
+// one export panel, three modes:
+//   finished  reversed+graded positive (JPEG / 16-bit sRGB TIFF)
+//   linear    inverted+unmasked flat 16-bit master for Capture One (-lin)
+//   raw       un-inverted cropped negative + film-base margin (-raw)
+const EXP = {
+  finished: { suffix: '', hint: '反相 + 去罩 + 白平衡 + 色调，成片直接可用（sRGB）。' },
+  linear: { suffix: '-lin', hint: '已反相 + 去罩、不烤 gamma 的平片，给 Capture One 续调（-lin.tiff）。中性=灰世界+统一拉伸，每通道=更到位；导到 C1 Hot Folder 可自动 ingest。' },
+  raw: { suffix: '-raw', hint: '只按裁切导出原始负片：不反相 / 不调色 / 不白平衡，四周留片基，给 darktable（negadoctor）等（-raw.tiff）。' },
 };
-
-// un-graded export: raw cropped negative (no invert/WB/tone), margin of film base
-$('#btnExportRaw').onclick = () =>
-  runExport({ path: S.path, frames: buildExportFrames('-raw'), formats: ['tiff'], raw: true, out_dir: outDir() },
-    '#exportRawStatus', '#btnExportRaw', `导出 ${nFrames()} 帧未调色原片…`);
-
-// linear positive: inverted + unmasked, flat (no gamma), for Capture One
-$('#btnExportLin').onclick = () =>
-  runExport({ path: S.path, frames: buildExportFrames('-lin'), formats: ['tiff'], linear: true, norm: $('#linNorm').value, out_dir: outDir() },
-    '#exportLinStatus', '#btnExportLin', `导出 ${nFrames()} 帧线性正片…`);
-
-// remember linear normalisation + output dir across sessions
+function syncExpMode() {
+  const m = $('#expMode').value;
+  $('#optFinished').classList.toggle('hidden', m !== 'finished');
+  $('#optLinear').classList.toggle('hidden', m !== 'linear');
+  $('#expHint').textContent = EXP[m].hint;
+}
+$('#expMode').addEventListener('change', () => { localStorage.setItem('filmtool.expMode', $('#expMode').value); syncExpMode(); });
 $('#linNorm').addEventListener('change', e => localStorage.setItem('filmtool.linNorm', e.target.value));
 $('#outDir').addEventListener('change', e => localStorage.setItem('filmtool.outDir', e.target.value.trim()));
+
+$('#btnExport').onclick = () => {
+  const mode = $('#expMode').value;
+  const body = { path: S.path, frames: buildExportFrames(EXP[mode].suffix), out_dir: outDir() };
+  if (mode === 'finished') {
+    const formats = [];
+    if ($('#fmtJpg').checked) formats.push('jpg');
+    if ($('#fmtTiff').checked) formats.push('tiff');
+    if (!formats.length) return toast('请选择至少一种格式');
+    body.formats = formats;
+  } else if (mode === 'linear') {
+    body.formats = ['tiff']; body.linear = true; body.norm = $('#linNorm').value;
+  } else {
+    body.formats = ['tiff']; body.raw = true;
+  }
+  runExport(body, '#exportStatus', '#btnExport',
+    `导出 ${nFrames()} 帧（${$('#expMode').selectedOptions[0].text}）…`);
+};
 
 // ---------------------------------------------------------------- utils + init
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
@@ -533,8 +547,10 @@ window.addEventListener('resize', debounce(renderOverlay, 150));
   } else if (savedRatio === 'custom') {
     S.ratio = { along: parseFloat($('#ratA').value) || 1, across: parseFloat($('#ratB').value) || 1 };
   }
+  $('#expMode').value = localStorage.getItem('filmtool.expMode') || 'finished';
   $('#linNorm').value = localStorage.getItem('filmtool.linNorm') || 'neutral';
   $('#outDir').value = localStorage.getItem('filmtool.outDir') || '';
+  syncExpMode();
   const dir = localStorage.getItem('filmtool.dir') || '';
   loadFiles(dir).then(n => { if (!n) openDirBrowser(dir); });
 })();

@@ -127,13 +127,15 @@ def develop_linear(raw, ped, base_rgb, params, norm="neutral"):
     to be graded downstream (e.g. Capture One). Same density-space inversion as
     develop(), but skips black/contrast/gamma. Two normalisations:
 
-      neutral (default)  grey-world WB + shared Dmax -> flatter, greyer, most
-                         grading latitude.
-      per_channel        each channel's 0.5/99.5 percentile stretched to [0,1]
-                         (the reference method); punchier but can cast per channel.
+      neutral (default)  grey-world WB + one SHARED (achromatic) black/white
+                         point from the frame's luminance 0.5/99.5 percentiles.
+                         Fills the range but keeps colour relationships -> gentler.
+      per_channel        each channel's own 0.5/99.5 percentile stretched to [0,1]
+                         (the reference method); punchier, auto-corrects casts.
 
-    Positive/slide mode falls back to a plain linear white-point scale. Returns
-    uint16 (0-65535)."""
+    Both fill the tonal range (a plain Dmax divide left frames near-black). No
+    gamma is applied either way. Positive/slide mode falls back to a plain linear
+    white-point scale. Returns uint16 (0-65535)."""
     if params.get("mode", "negative") != "negative":
         wp = np.asarray(params.get("white_lin", base_rgb), dtype=np.float32)
         lin = np.clip(raw.astype(np.float32) - ped, EPS, None)
@@ -146,10 +148,11 @@ def develop_linear(raw, ped, base_rgb, params, norm="neutral"):
         for c in range(3):
             lo, hi = np.percentile(D[..., c], (0.5, 99.5))
             x[..., c] = (D[..., c] - lo) / max(float(hi - lo), 1e-6)
-    else:  # neutral
+    else:  # neutral: grey-world WB + shared luminance-based black/white point
         wb = np.asarray(params.get("wb_gain", [1.0, 1.0, 1.0]), dtype=np.float32)
-        dmax = float(params.get("dmax", 2.0))
-        x = (D * wb[None, None, :]) / max(dmax, 1e-3)
+        Dw = D * wb[None, None, :]
+        lo, hi = np.percentile(Dw.mean(axis=2), (0.5, 99.5))
+        x = (Dw - float(lo)) / max(float(hi - lo), 1e-6)
     x = np.clip(x, 0.0, 1.0)
     return (x * 65535.0 + 0.5).astype(np.uint16)
 
