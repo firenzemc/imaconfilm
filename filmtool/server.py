@@ -254,16 +254,31 @@ class ExportReq(BaseModel):
     formats: list[str] = ["jpg", "tiff"]
     raw: bool = False       # un-developed: export the cropped raw scanner data
     margin: float = 0.1     # raw mode: grow the crop on every side (film-base ref)
+    linear: bool = False    # inverted+unmasked but NO tone curve (flat, for C1)
+    norm: str = "neutral"   # linear mode: 'neutral' | 'per_channel'
+    out_dir: str = ""       # optional export dir (relative to root; e.g. a C1 Hot Folder)
 
 
 @app.post("/api/export")
 def export(req: ExportReq):
     c = _strip(req.path)
     src = c["path"]
-    dest = src.parent / src.stem  # subfolder next to the source file
+    # optional destination override (e.g. a Capture One Hot Folder); else a
+    # subfolder next to the source file.
+    dest = _resolve(req.out_dir) if req.out_dir else src.parent / src.stem
     dest.mkdir(parents=True, exist_ok=True)
     written = []
     for fr in req.frames:
+        if req.linear:
+            # Inverted + mask-removed but flat (no gamma/tone) — a grading master
+            # for Capture One. No ICC yet (pending C1 verification of the profile).
+            crop, _ = _crop_raw(c, fr.u0, fr.u1, fr.v0, fr.v1, max_px=10 ** 9)
+            out = P.develop_linear(crop, c["ped"], c["base"], fr.params, norm=req.norm)
+            out = P.orient(out, fr.rotation, fr.flip_h, fr.flip_v)
+            p = dest / f"{fr.out_name}.tiff"
+            tifffile.imwrite(str(p), out, photometric="rgb", compression="adobe_deflate")
+            written.append(str(p))
+            continue
         if req.raw:
             # No inversion / WB / tone — write the raw 16-bit scanner crop so the
             # negative is developed later (e.g. darktable's negadoctor). Grow the

@@ -122,6 +122,38 @@ def develop(raw, ped, base_rgb, params, out16=False):
     return (np.clip(x, 0, 1) * 255.0 + 0.5).astype(np.uint8)
 
 
+def develop_linear(raw, ped, base_rgb, params, norm="neutral"):
+    """Inverted + mask-removed 16-bit master with NO tone curve (flat/linear),
+    to be graded downstream (e.g. Capture One). Same density-space inversion as
+    develop(), but skips black/contrast/gamma. Two normalisations:
+
+      neutral (default)  grey-world WB + shared Dmax -> flatter, greyer, most
+                         grading latitude.
+      per_channel        each channel's 0.5/99.5 percentile stretched to [0,1]
+                         (the reference method); punchier but can cast per channel.
+
+    Positive/slide mode falls back to a plain linear white-point scale. Returns
+    uint16 (0-65535)."""
+    if params.get("mode", "negative") != "negative":
+        wp = np.asarray(params.get("white_lin", base_rgb), dtype=np.float32)
+        lin = np.clip(raw.astype(np.float32) - ped, EPS, None)
+        x = np.clip(lin / wp[None, None, :], 0.0, 1.0)
+        return (x * 65535.0 + 0.5).astype(np.uint16)
+
+    D = density(raw, ped, base_rgb)
+    if norm == "per_channel":
+        x = np.empty_like(D)
+        for c in range(3):
+            lo, hi = np.percentile(D[..., c], (0.5, 99.5))
+            x[..., c] = (D[..., c] - lo) / max(float(hi - lo), 1e-6)
+    else:  # neutral
+        wb = np.asarray(params.get("wb_gain", [1.0, 1.0, 1.0]), dtype=np.float32)
+        dmax = float(params.get("dmax", 2.0))
+        x = (D * wb[None, None, :]) / max(dmax, 1e-3)
+    x = np.clip(x, 0.0, 1.0)
+    return (x * 65535.0 + 0.5).astype(np.uint16)
+
+
 def suggest_cuts(small, ped, base_rgb, axis=0):
     """Best-effort frame-gap detection along `axis` (0 = vertical strip).
 

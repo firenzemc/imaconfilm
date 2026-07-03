@@ -466,57 +466,55 @@ $('#frameImg').addEventListener('click', async e => {
 });
 
 // ---------------------------------------------------------------- export
-$('#btnExport').onclick = async () => {
+const outDir = () => $('#outDir').value.trim();
+function buildExportFrames(suffix) {
+  const stem = S.name.replace(/\.fff$/i, '');
+  const frames = [];
+  for (let i = 0; i < nFrames(); i++) {
+    const [u0, u1] = frameSpan(i); const m = frameMetaAt(i);
+    frames.push({
+      u0, u1, v0: S.vcrop[0], v1: S.vcrop[1],
+      rotation: m.rotation, flip_h: m.flip_h, flip_v: m.flip_v,
+      params: m.params, out_name: `${stem}-${String(i + 1).padStart(2, '0')}${suffix}`,
+    });
+  }
+  return frames;
+}
+async function runExport(body, statusSel, btnSel, workingMsg) {
+  if (S.sel < 0 || !nFrames()) return toast('请先选文件并分帧');
+  $(statusSel).textContent = workingMsg;
+  $(btnSel).disabled = true;
+  try {
+    const r = await (await api('/api/export', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    })).json();
+    $(statusSel).textContent = `✓ 已导出 ${r.files.length} 个文件到\n${r.out_dir}`;
+  } catch (e) { $(statusSel).textContent = '导出失败: ' + e; }
+  $(btnSel).disabled = false;
+}
+
+$('#btnExport').onclick = () => {
   const formats = [];
   if ($('#fmtJpg').checked) formats.push('jpg');
   if ($('#fmtTiff').checked) formats.push('tiff');
   if (!formats.length) return toast('请选择至少一种格式');
-  const stem = S.name.replace(/\.fff$/i, '');
-  const frames = [];
-  for (let i = 0; i < nFrames(); i++) {
-    const [u0, u1] = frameSpan(i); const m = frameMetaAt(i);
-    frames.push({
-      u0, u1, v0: S.vcrop[0], v1: S.vcrop[1],
-      rotation: m.rotation, flip_h: m.flip_h, flip_v: m.flip_v,
-      params: m.params, out_name: `${stem}-${String(i + 1).padStart(2, '0')}`,
-    });
-  }
-  $('#exportStatus').textContent = `导出 ${frames.length} 帧（全分辨率）…`;
-  $('#btnExport').disabled = true;
-  try {
-    const r = await (await api('/api/export', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: S.path, frames, formats }),
-    })).json();
-    $('#exportStatus').textContent = `✓ 已导出 ${r.files.length} 个文件到\n${r.out_dir}`;
-  } catch (e) { $('#exportStatus').textContent = '导出失败: ' + e; }
-  $('#btnExport').disabled = false;
+  runExport({ path: S.path, frames: buildExportFrames(''), formats, out_dir: outDir() },
+    '#exportStatus', '#btnExport', `导出 ${nFrames()} 帧（全分辨率）…`);
 };
 
 // un-graded export: raw cropped negative (no invert/WB/tone), margin of film base
-$('#btnExportRaw').onclick = async () => {
-  if (S.sel < 0 || !nFrames()) return toast('请先选文件并分帧');
-  const stem = S.name.replace(/\.fff$/i, '');
-  const frames = [];
-  for (let i = 0; i < nFrames(); i++) {
-    const [u0, u1] = frameSpan(i); const m = frameMetaAt(i);
-    frames.push({
-      u0, u1, v0: S.vcrop[0], v1: S.vcrop[1],
-      rotation: m.rotation, flip_h: m.flip_h, flip_v: m.flip_v,
-      params: m.params, out_name: `${stem}-${String(i + 1).padStart(2, '0')}-raw`,
-    });
-  }
-  $('#exportRawStatus').textContent = `导出 ${frames.length} 帧未调色原片…`;
-  $('#btnExportRaw').disabled = true;
-  try {
-    const r = await (await api('/api/export', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: S.path, frames, formats: ['tiff'], raw: true }),
-    })).json();
-    $('#exportRawStatus').textContent = `✓ 已导出 ${r.files.length} 个原片到\n${r.out_dir}`;
-  } catch (e) { $('#exportRawStatus').textContent = '导出失败: ' + e; }
-  $('#btnExportRaw').disabled = false;
-};
+$('#btnExportRaw').onclick = () =>
+  runExport({ path: S.path, frames: buildExportFrames('-raw'), formats: ['tiff'], raw: true, out_dir: outDir() },
+    '#exportRawStatus', '#btnExportRaw', `导出 ${nFrames()} 帧未调色原片…`);
+
+// linear positive: inverted + unmasked, flat (no gamma), for Capture One
+$('#btnExportLin').onclick = () =>
+  runExport({ path: S.path, frames: buildExportFrames('-lin'), formats: ['tiff'], linear: true, norm: $('#linNorm').value, out_dir: outDir() },
+    '#exportLinStatus', '#btnExportLin', `导出 ${nFrames()} 帧线性正片…`);
+
+// remember linear normalisation + output dir across sessions
+$('#linNorm').addEventListener('change', e => localStorage.setItem('filmtool.linNorm', e.target.value));
+$('#outDir').addEventListener('change', e => localStorage.setItem('filmtool.outDir', e.target.value.trim()));
 
 // ---------------------------------------------------------------- utils + init
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
@@ -535,6 +533,8 @@ window.addEventListener('resize', debounce(renderOverlay, 150));
   } else if (savedRatio === 'custom') {
     S.ratio = { along: parseFloat($('#ratA').value) || 1, across: parseFloat($('#ratB').value) || 1 };
   }
+  $('#linNorm').value = localStorage.getItem('filmtool.linNorm') || 'neutral';
+  $('#outDir').value = localStorage.getItem('filmtool.outDir') || '';
   const dir = localStorage.getItem('filmtool.dir') || '';
   loadFiles(dir).then(n => { if (!n) openDirBrowser(dir); });
 })();

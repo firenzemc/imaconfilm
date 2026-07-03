@@ -45,6 +45,22 @@ FFF_DIR=/Volumes/SSD/film docker compose up -d
 > 端口 8790 是为了避开本机 8788 上已有的 ai-app-sampler。改端口：`PORT=9000 ./run.sh`。
 > 首次运行 `uv` 会自动建虚拟环境装依赖（fastapi / numpy / pillow / tifffile）。
 
+### 方式三：Apple container（macOS 原生容器，Apple Silicon）
+
+```bash
+FFF_DIR=~/Pictures/Film ./container-run.sh      # 指向你存底片的目录
+./container-run.sh --build                       # 强制先重建镜像
+```
+
+构建镜像 + 起容器 + 发布到 `0.0.0.0:8790`（tailnet 可达，脚本会打印本机 IP）。
+
+> ⚠️ **不要挂整个 `$HOME`**：Apple container 的 virtiofs 无法遍历 macOS 的受保护家目录
+> （`~/Library`、`~/Pictures`、`~/Documents`…），任何 `/data` 下的文件访问都会**卡死**。
+> 把 `FFF_DIR` 指向**具体的扫描目录**。若底片在受 TCC 保护的目录下（`~/Pictures`、
+> `~/Documents`、`~/Desktop`、`~/Downloads`），要么换到非保护位置（如 `~/Film`），要么在
+> 「系统设置 › 隐私与安全性 › 完全磁盘访问权限」里给 `container` 授权。
+> （这点和上面 Docker/OrbStack 方案不同——那个可以直接挂 `$HOME`。）
+
 ## 操作流程
 
 1. **选目录 / 选文件** —— 顶部「选择目录…」浏览允许根目录下的子目录，选当前要处理的一批底片
@@ -68,6 +84,22 @@ FFF_DIR=/Volumes/SSD/film docker compose up -d
    - **未调色原片导出**（`导出全部帧` 下方按钮）：只按裁切导出原始负片，**不反相 / 不调色 /
      不白平衡**，四周多留约 10% 片基作色彩基准，输出 `<文件名>-序号-raw.tiff`（16-bit 线性、
      无损、无 ICC）。留到 darktable（negadoctor 模块）等里反相 + 调色。
+   - **线性正片导出（Capture One）**：已**反相 + 去罩**但**不烤 gamma**的平片，输出
+     `<文件名>-序号-lin.tiff`（16-bit 无损）。`线性归一化` 开关：**中性平片**（灰世界白平衡 +
+     共享 Dmax，更灰、留最大调色空间，默认；偏暗是正常的）/ **每通道拉伸**（每通道百分位拉满，
+     更到位但可能偏色）。给 Capture One 续调（见下）。
+   - **导出到目录**（可选，对以上三种都生效）：留空 = 输入文件旁；填一个目录（如 C1 Hot Folder）即导到那里。
+
+## 配合 Capture One
+
+工作流切到 C1 时，用**线性正片导出**产平母版，让 C1 做定调：
+
+1. 在 C1 里给当前 Session/Catalog 开 **Hot Folder**（`Camera` 菜单 › `Hot Folder Enabled`），指向一个文件夹。
+2. filmtool 的「导出到目录」填那个文件夹，点 `导出线性正片`。C1 会自动把新 TIFF ingest 进来。
+3. 在 C1 里反相已经做好了（这是正片），直接调曝光/白平衡/曲线即可。
+
+> ⚠️ 线性 TIFF 目前**不内嵌 ICC**（管线未做色度标定）。在 C1 里若显示偏暗/偏色，按需在 C1 指定或线性化
+> 输入 profile —— 这块建议先用一两张验证一下再固定流程。中性模式本身就偏暗（那是宽容度），属正常。
 
 ## 它是怎么工作的
 
